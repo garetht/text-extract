@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup, NavigableString, Comment
 
 
 def extract_text_internal(root, text, level, max_level):
@@ -7,6 +7,12 @@ def extract_text_internal(root, text, level, max_level):
 
     if type(root) is NavigableString:
         return text + root
+
+    if type(root) is Comment:
+        return text
+
+    if root.name is "script":
+        return text
 
     children_text = ''
     for child in root.children:
@@ -17,19 +23,29 @@ def extract_text_internal(root, text, level, max_level):
 
 
 def extract_text(root):
-    return extract_text_internal(root, '', 0, 1)
+    return extract_text_internal(root, '', 0, 2)
 
 
 class Extractor(object):
+    """
+    This works quite simply but effectively.
+    1. We find all paragraph tags that are first
+    children.
+    2. We iterate through the tag's siblings and extract
+    text down to a maximum of two levels.
+    3. We return the text from the paragraph tag that
+    is the longest.
+    """
 
-    def __init__(self, tree):
+    def extract(self, tree):
         self.tree = tree
-
-    def extract(self):
         candidate_paras = self.gather_first_children_with_tag('p')
         possible_review_texts = [' '.join(self.compute_tag_word_context(p))
                                  for p in candidate_paras]
-        return max(possible_review_texts, key=lambda t: len(t))
+        if len(possible_review_texts) > 0:
+            return max(possible_review_texts, key=lambda t: len(t))
+        else:
+            return ''
 
     def gather_first_children_with_tag(self, tag):
         tagged_elements = self.tree.find_all(tag)
@@ -44,9 +60,3 @@ class Extractor(object):
             review_text.append(extract_text(sibling))
 
         return review_text
-
-
-test_document = f = open('../test/fixture.html', 'r')
-
-e = Extractor(BeautifulSoup(test_document))
-print e.extract()
